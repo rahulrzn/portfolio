@@ -1,0 +1,71 @@
+# Dependencies, builds and caches
+node_modules/
+dist/
+.vite/
+.cache/
+.wrangler/
+*.tsbuildinfo
+
+# Environment values stay local; commit configuration examples
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+.npmrc
+.pypirc
+
+# Credential/key files and local cloud authentication
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+.azure/
+.ssh/
+.codex/auth.json
+credentials*.json
+secrets*.json
+*service-account*.json
+*serviceAccount*.json
+*firebase-adminsdk*.json
+
+# Browser-local admin exports may contain personal content and images
+rahul-portfolio-backup-*.json
+rahul-damaged-content.txt
+
+# Private resume sources, reference inspection and local utilities
+reference/
+.reference-inspection/
+.tools/
+scripts/inspect-references.py
+scripts/package-versions.py
+scripts/research-references.py
+scripts/research-browser.mjs
+scripts/read-docs.py
+docs/screenshots*/
+docs/superpowers/
+
+# Browser/test output
+.playwright/
+test-results*/
+playwright-report/
+coverage/
+blob-report/
+
+# Private design-tool settings and generated review artifacts
+.impeccable/config.local.json
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
+
+# Logs and operating-system files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

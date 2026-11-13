@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "space grotesk",
+        "createdAt": "2026-11-13T20:59:36.524Z",
+        "reason": "Coordinator selected Space Grotesk for readable headings under user-delegated creative direction; recorded in DESIGN.md and independently accepted in docs/final-design-review.md after both-theme desktop and mobile review."
+      }
+    ]
+  }
+}
