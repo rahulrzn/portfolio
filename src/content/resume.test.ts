@@ -20,6 +20,22 @@ function printedLines(pdf: string) {
 }
 
 describe('generated public resume', () => {
+  it('includes enabled social profiles and published project repository links', async () => {
+    const content = structuredClone(defaults);
+    content.socialLinks = [
+      { id: 'resume-github', platform: 'github', url: 'https://github.com/portfolio-owner', enabled: true, order: 0 },
+      { id: 'resume-hidden', platform: 'instagram', url: 'https://instagram.com/hidden_owner', enabled: false, order: 1 },
+    ];
+    content.projects[0].githubUrl = 'https://github.com/portfolio-owner/soho-suite';
+    const lines = printedLines(await pdfBytes(createResume(content)));
+    expect(lines).toContain('https://github.com/portfolio-owner');
+    expect(lines).toContain('https://github.com/portfolio-owner/soho-suite');
+    expect(lines).not.toContain('https://instagram.com/hidden_owner');
+    content.projects[0].status = 'draft';
+    expect(printedLines(await pdfBytes(createResume(content)))).not.toContain(
+      'https://github.com/portfolio-owner/soho-suite',
+    );
+  });
   it('prints configured phone contact details and omits an empty phone', async () => {
     const content = structuredClone(defaults);
     content.profile.phone = '+91 98765 43210';

@@ -11,8 +11,12 @@ async function saveDraft(page: Page) {
 }
 
 async function publish(page: Page) {
+  const published = page.waitForResponse(
+    (response) => response.url().endsWith('/api/admin/publish') && response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Publish now', exact: true }).click();
+  expect((await published).status()).toBe(200);
   await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
 }
 
