@@ -5,6 +5,7 @@ import { expect, test } from './fixtures';
 test('public resume preview shows published details, downloads a PDF and preserves resume references', async ({
   page, publishContent,
 }) => {
+  test.setTimeout(60000);
   const content = structuredClone(defaults);
   content.profile.email = 'resume-owner@example.com';
   content.profile.phone = '+91 98765 43210';

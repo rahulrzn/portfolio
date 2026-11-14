@@ -192,6 +192,7 @@ export default function Layout() {
           <div className="footer-links">
             <Link to={path('/projects')}>Projects</Link>
             <Link to={path('/research')}>Research</Link>
+            <Link to={path('/resume')}>Résumé</Link>
             <ProfileLinks showContactValues />
           </div>
           <span className="location">

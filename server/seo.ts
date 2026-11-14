@@ -2,7 +2,7 @@ import type { Content, Envelope } from '../src/content/schema';
 import { publicContent } from './content';
 import { privateHeaders, publicCache } from './http';
 
-export const publicPageRoutes = ['/', '/about', '/skills', '/projects', '/research', '/contact'] as const;
+export const publicPageRoutes = ['/', '/about', '/skills', '/projects', '/research', '/contact', '/resume'] as const;
 
 export interface PageMetadata {
   title: string;
@@ -35,7 +35,7 @@ export function metadataFor(request: Request, source: Content): PageMetadata {
   const project = slug ? content.projects.find((project) => project.slug === slug) : undefined;
   const isPublicPage = (publicPageRoutes as readonly string[]).includes(path);
   const notFound = !isPublicPage && !project;
-  const pageTitles: Record<string, string> = { '/about': 'About', '/skills': 'Skills', '/projects': 'Projects', '/research': 'Research', '/contact': 'Contact' };
+  const pageTitles: Record<string, string> = { '/about': 'About', '/skills': 'Skills', '/projects': 'Projects', '/research': 'Research', '/contact': 'Contact', '/resume': 'Résumé' };
   const title = notFound ? `Project unavailable | ${content.profile.name}`
     : project ? `${project.title} | ${content.profile.name}`
     : path === '/' ? content.settings.seoTitle : `${pageTitles[path]} | ${content.profile.name}`;

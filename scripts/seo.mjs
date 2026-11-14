@@ -62,6 +62,7 @@ const pages = [
     })),
   { path: 'research', title: `Research | ${content.profile.name}` },
   { path: 'contact', title: `Contact | ${content.profile.name}` },
+  { path: 'resume', title: `Résumé | ${content.profile.name}` },
   {
     path: 'admin',
     title: `Content workspace | ${content.profile.name}`,

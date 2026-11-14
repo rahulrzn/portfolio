@@ -8,6 +8,7 @@ const Projects = lazy(() => import('./Projects'));
 const ProjectDetail = lazy(() => import('./ProjectDetail'));
 const Research = lazy(() => import('./Research'));
 const Contact = lazy(() => import('./Contact'));
+const Resume = lazy(() => import('./Resume'));
 const NotFound = lazy(() => import('./NotFound'));
 export default function PublicRoutes() {
   return (
@@ -27,6 +28,7 @@ export default function PublicRoutes() {
           <Route path="projects/:slug" element={<ProjectDetail />} />
           <Route path="research" element={<Research />} />
           <Route path="contact" element={<Contact />} />
+          <Route path="resume" element={<Resume />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
