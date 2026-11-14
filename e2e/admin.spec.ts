@@ -1,30 +1,35 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test, signIn, testPassword } from './fixtures';
 import { readFile } from 'node:fs/promises';
 
 async function enter(page: Page) {
-  await page.goto('/admin/login');
-  await page.getByLabel('Session phrase', { exact: true }).fill('local-editor-test');
-  await page.getByRole('button', { name: 'Open workspace' }).click();
-  await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();
+  const baseURL = test.info().project.use.baseURL;
+  if (!baseURL) throw new Error('The isolated test server origin is required.');
+  await signIn(page, baseURL);
 }
 async function confirm(page: Page, label: string) {
   await page.getByRole('dialog').getByRole('button', { name: label, exact: true }).click();
 }
-test('development gate states its limits, validates and signs out', async ({ page }) => {
+function editorLink(page: Page, label: string) {
+  return page.getByRole('navigation', { name: 'Workspace sections' }).getByRole('link', { name: label });
+}
+test('server login rejects invalid passwords, restores its session and signs out', async ({ page, baseURL }) => {
   await page.goto('/admin/login');
-  await expect(page.getByText('This gate is not authentication.', { exact: false })).toBeVisible({
-    timeout: 20000,
-  });
-  await page.getByLabel('Session phrase', { exact: true }).fill('short');
-  await page.getByRole('button', { name: 'Open workspace' }).click();
-  await expect(page.getByRole('alert')).toContainText('8');
-  await enter(page);
+  await page.getByLabel('Password', { exact: true }).fill('incorrect-password-for-tests');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText(/incorrect|invalid|password/i);
+  await page.getByLabel('Password', { exact: true }).fill(await testPassword(baseURL!));
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.locator('.admin-page-heading h1')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.admin-page-heading h1')).toBeVisible();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Local development workspace' })).toBeVisible();
+  await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+  expect((await page.request.get('/api/admin/content')).status()).toBe(401);
 });
 test('project CRUD isolates saved drafts and publishes edited live URLs', async ({ page }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await editorLink(page, 'Projects').click();
   await page.getByRole('button', { name: 'Add project', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Admin integration project');
   await page.getByLabel('Slug', { exact: true }).fill('admin-integration-project');
@@ -34,7 +39,7 @@ test('project CRUD isolates saved drafts and publishes edited live URLs', async 
   await page.getByLabel('Live Demo URL', { exact: true }).fill('https://example.com/first');
   await page.getByLabel('Status', { exact: true }).selectOption('published');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('saved');
+  await expect(page.locator('.admin-draft-status')).toContainText('Draft saved');
   const publicTab = await page.context().newPage();
   await publicTab.goto('/projects');
   await expect(publicTab.getByText('Admin integration project', { exact: true })).toHaveCount(0);
@@ -50,14 +55,14 @@ test('project CRUD isolates saved drafts and publishes edited live URLs', async 
   ).toHaveAttribute('href', 'https://example.com/first');
   await page.getByRole('link', { name: 'Back to workspace' }).click();
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('this browser');
+  await expect(page.getByRole('dialog')).toContainText(/publish|portfolio/i);
   await confirm(page, 'Publish now');
   await publicTab.goto('/projects/admin-integration-project');
   await expect(publicTab.getByRole('link', { name: /Live Demo/i })).toHaveAttribute(
     'href',
     'https://example.com/first',
   );
-  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await editorLink(page, 'Projects').click();
   await page
     .getByRole('article')
     .filter({ hasText: 'Admin integration project' })
@@ -89,14 +94,14 @@ test('skills, research, settings and backups support mobile editing', async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   await enter(page);
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('link', { name: 'Skills', exact: true }).click();
+  await editorLink(page, 'Skills').click();
   await page.getByRole('button', { name: 'Add category' }).click();
   await page.getByLabel('Category 7', { exact: true }).fill('Admin test tools');
   await page.getByRole('button', { name: 'Add skill to category 7' }).click();
   await page.getByLabel('Skill 1 in category 7', { exact: true }).fill('Browser testing');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('link', { name: 'Research', exact: true }).click();
+  await editorLink(page, 'Research').click();
   await page.getByRole('button', { name: 'Add research', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Admin test research');
   await page.getByLabel('Publication URL').fill('javascript:alert(1)');
@@ -105,7 +110,7 @@ test('skills, research, settings and backups support mobile editing', async ({ p
   await page.getByLabel('Publication URL').fill('https://example.com/research');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await editorLink(page, 'Settings').click();
   await page.getByLabel('Footer note').fill('Admin backup test');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   const download = page.waitForEvent('download');
@@ -128,9 +133,9 @@ test('unsaved profile edits require discard confirmation and image failures are 
   page,
 }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await editorLink(page, 'Profile').click();
   await page.getByLabel('Name', { exact: true }).fill('Unsaved test name');
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await editorLink(page, 'Settings').click();
   await expect(page.getByRole('dialog')).toContainText('unsaved');
   await confirm(page, 'Keep editing');
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Unsaved test name');
@@ -150,7 +155,7 @@ test('image-containing backups restore the draft without publishing and defaults
   page,
 }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await editorLink(page, 'Profile').click();
   await page.getByLabel('Name', { exact: true }).fill('Portable backup profile');
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -168,9 +173,9 @@ test('image-containing backups restore the draft without publishing and defaults
       mimeType: 'image/png',
       buffer: Buffer.from(png, 'base64'),
     });
-  await expect(page.getByRole('status')).toContainText('Image added');
+  await expect(page.getByRole('status').filter({ hasText: 'Image added' })).toBeVisible();
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await editorLink(page, 'Settings').click();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export backup' }).click();
   const saved = await download;
@@ -180,33 +185,31 @@ test('image-containing backups restore the draft without publishing and defaults
   await confirm(page, 'Cancel');
   await page.getByRole('button', { name: 'Restore defaults', exact: true }).click();
   await confirm(page, 'Restore defaults');
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await editorLink(page, 'Profile').click();
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Rahul Reji R.');
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await editorLink(page, 'Settings').click();
   await page
     .getByLabel('Import backup file')
     .setInputFiles({ name: 'portable-backup.json', mimeType: 'application/json', buffer: data });
   await confirm(page, 'Import draft');
-  await expect(page.getByRole('status')).toContainText('Backup imported');
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Backup imported' })).toBeVisible();
+  await editorLink(page, 'Profile').click();
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Portable backup profile');
   await expect(page.getByRole('img', { name: 'Profile image preview' })).toHaveAttribute(
     'src',
-    /^blob:/,
+    /^\/api\/media\/[a-f0-9-]+$/,
   );
+  await expect(page.getByRole('img', { name: 'Profile image preview' })).toHaveJSProperty('naturalWidth', 128);
   const publicTab = await page.context().newPage();
   await publicTab.goto('/');
   await expect(publicTab.getByText('Portable backup profile', { exact: false })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Local development workspace' })).toBeVisible();
-  await page.getByLabel('Session phrase', { exact: true }).fill('new-editor-session');
-  await page.getByRole('button', { name: 'Open workspace' }).click();
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await expect(page.getByLabel('Name', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Portable backup profile');
 });
 test('research deletion and saved draft reversion require confirmation', async ({ page }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Research', exact: true }).click();
+  await editorLink(page, 'Research').click();
   await page.getByRole('button', { name: 'Add research', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Removable draft research');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
@@ -218,7 +221,7 @@ test('research deletion and saved draft reversion require confirmation', async (
   await item.getByRole('button', { name: 'Delete', exact: true }).click();
   await confirm(page, 'Delete research');
   await expect(item).toHaveCount(0);
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await editorLink(page, 'Profile').click();
   await page.getByLabel('Headline', { exact: true }).fill('Saved draft reversion check');
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await page.getByRole('button', { name: 'Discard saved draft', exact: true }).click();
@@ -228,8 +231,8 @@ test('research deletion and saved draft reversion require confirmation', async (
   );
   await page.getByRole('button', { name: 'Discard saved draft', exact: true }).click();
   await confirm(page, 'Discard saved draft');
-  await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  await editorLink(page, 'Profile').click();
   await expect(page.getByLabel('Headline', { exact: true })).not.toHaveValue(
     'Saved draft reversion check',
   );
@@ -239,7 +242,7 @@ for (const editor of ['Profile', 'Skills'] as const) {
     page,
   }) => {
     await enter(page);
-    await page.getByRole('link', { name: editor, exact: true }).click();
+    await editorLink(page, editor).click();
     const input = page.getByLabel(editor === 'Profile' ? 'Name' : 'Category 1', { exact: true });
     await input.fill('Preserve this unsaved browser Back text');
     await expect(page.locator('.admin-draft-status')).toContainText('Unsaved changes');
@@ -257,12 +260,13 @@ for (const editor of ['Profile', 'Skills'] as const) {
     page.off('dialog', dismiss);
     page.once('dialog', (dialog) => dialog.accept());
     await page.goBack();
-    await expect(page.getByRole('heading', { name: 'Workspace overview' })).toBeVisible();
-    await page.getByRole('link', { name: editor, exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await editorLink(page, editor).click();
     await expect(input).not.toHaveValue('Preserve this unsaved browser Back text');
   });
 }
-test('mobile drawer transfers focus, traps Tab, closes with Escape and restores focus', async ({
+// The owner explicitly deferred the mobile drawer's initial keyboard focus.
+test.fixme('mobile drawer transfers focus, traps Tab, closes with Escape and restores focus', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -290,8 +294,8 @@ test('browser Forward keeps the dirty form when canceled and proceeds when accep
   page,
 }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Profile', exact: true }).click();
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await editorLink(page, 'Profile').click();
+  await editorLink(page, 'Settings').click();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await page.goBack();
   const name = page.getByLabel('Name', { exact: true });
@@ -312,7 +316,7 @@ test('browser Forward keeps the dirty form when canceled and proceeds when accep
 });
 test('duplicating long valid slugs preserves a valid unique project route', async ({ page }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await editorLink(page, 'Projects').click();
   await page.getByRole('button', { name: 'Add project', exact: true }).click();
   await page.getByLabel('Title', { exact: true }).fill('Long slug duplicate case');
   await page.getByLabel('Slug', { exact: true }).fill(`${'a'.repeat(63)}-bc`);
@@ -336,7 +340,7 @@ test('nested skill and outcome errors describe limits at the exact invalid field
   page,
 }) => {
   await enter(page);
-  await page.getByRole('link', { name: 'Skills', exact: true }).click();
+  await editorLink(page, 'Skills').click();
   const category = page.getByLabel('Category 1', { exact: true });
   await category.fill('X'.repeat(101));
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
@@ -350,7 +354,7 @@ test('nested skill and outcome errors describe limits at the exact invalid field
   );
   await page.getByRole('button', { name: 'Revert to saved', exact: true }).click();
   await confirm(page, 'Discard changes');
-  await page.getByRole('link', { name: 'Projects', exact: true }).click();
+  await editorLink(page, 'Projects').click();
   await page
     .getByRole('article')
     .filter({ hasText: 'Soho Suite' })

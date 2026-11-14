@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { useWorkspace } from '../content/context';
 import { newResearch } from '../content/defaults';
 import { researchSchema, type Research } from '../content/schema';
@@ -11,9 +12,9 @@ function ResearchEditor({ research, onClose }: { research: Research; onClose: ()
     <EditorForm
       form={form}
       onCancel={onClose}
-      onSave={(value) => {
+      onSave={async (value) => {
         const content = repository.read().draft;
-        repository.saveDraft(
+        await repository.saveDraft(
           {
             ...content,
             research: content.research.some((item) => item.id === value.id)
@@ -39,8 +40,8 @@ function ResearchEditor({ research, onClose }: { research: Research; onClose: ()
             label="Status"
             type="select"
             options={[
-              { value: 'draft', label: 'Draft — hidden publicly' },
-              { value: 'published', label: 'Published — visible after global Publish' },
+              { value: 'draft', label: 'Hidden draft' },
+              { value: 'published', label: 'Public-ready (appears after Publish)' },
             ]}
           />
           <Field form={form} name="order" label="Display order" type="number" />
@@ -54,19 +55,23 @@ function ResearchEditor({ research, onClose }: { research: Research; onClose: ()
 export default function ResearchPage() {
   const { repository, snapshot } = useWorkspace();
   const [selected, setSelected] = useState<Research | null>(null);
-  const { confirm, notify, guard } = useAdmin();
+  const { confirm, notify, guard, busy, run } = useAdmin();
+  const pending = busy || !!snapshot.pending;
   const items = [...snapshot.draft.research].sort((a, b) => a.order - b.order);
-  const move = (index: number, delta: number) => {
+  const move = async (index: number, delta: number) => {
     try {
       const reordered = [...items];
+      if (index + delta < 0 || index + delta >= reordered.length) return;
       [reordered[index], reordered[index + delta]] = [reordered[index + delta], reordered[index]];
-      repository.saveDraft(
-        {
-          ...repository.read().draft,
-          research: reordered.map((item, i) => ({ ...item, order: i })),
-        },
-        'Reordered research',
-      );
+      await run(async () => {
+        await repository.saveDraft(
+          {
+            ...repository.read().draft,
+            research: reordered.map((item, i) => ({ ...item, order: i })),
+          },
+          'Reordered research',
+        );
+      });
       notify('Research order saved in draft.');
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Reordering failed.', true);
@@ -82,9 +87,10 @@ export default function ResearchPage() {
         <button
           className="button"
           type="button"
-          disabled={items.length >= 60}
+          disabled={pending || items.length >= 60}
           onClick={() => guard(() => setSelected(newResearch()))}
         >
+          <Plus size={17} aria-hidden="true" />
           Add research
         </button>
       </header>
@@ -112,6 +118,7 @@ export default function ResearchPage() {
                   <button
                     className="button small"
                     type="button"
+                    disabled={pending}
                     onClick={() => setSelected(research)}
                   >
                     Edit
@@ -120,23 +127,26 @@ export default function ResearchPage() {
                     className="button small secondary"
                     type="button"
                     aria-label={`Move ${research.title} up`}
-                    disabled={!index}
+                    disabled={pending || !index}
                     onClick={() => move(index, -1)}
                   >
+                    <ArrowUp size={15} aria-hidden="true" />
                     Up
                   </button>
                   <button
                     className="button small secondary"
                     type="button"
                     aria-label={`Move ${research.title} down`}
-                    disabled={index === items.length - 1}
+                    disabled={pending || index === items.length - 1}
                     onClick={() => move(index, 1)}
                   >
+                    <ArrowDown size={15} aria-hidden="true" />
                     Down
                   </button>
                   <button
-                    className="button small secondary"
+                    className="button small secondary admin-remove"
                     type="button"
+                    disabled={pending}
                     onClick={async () => {
                       if (
                         await confirm({
@@ -148,13 +158,17 @@ export default function ResearchPage() {
                       ) {
                         try {
                           const content = repository.read().draft;
-                          repository.saveDraft(
-                            {
-                              ...content,
-                              research: content.research.filter((item) => item.id !== research.id),
-                            },
-                            `Deleted research: ${research.title}`,
-                          );
+                          await run(async () => {
+                            await repository.saveDraft(
+                              {
+                                ...content,
+                                research: content.research.filter(
+                                  (item) => item.id !== research.id,
+                                ),
+                              },
+                              `Deleted research: ${research.title}`,
+                            );
+                          }, 'Deleting research…');
                           notify('Research deleted from draft.');
                         } catch (error) {
                           notify(error instanceof Error ? error.message : 'Delete failed.', true);
@@ -162,6 +176,7 @@ export default function ResearchPage() {
                       }
                     }}
                   >
+                    <Trash2 size={15} aria-hidden="true" />
                     Delete
                   </button>
                 </div>

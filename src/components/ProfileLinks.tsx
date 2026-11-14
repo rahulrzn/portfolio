@@ -1,7 +1,7 @@
-import { CodeXml, BriefcaseBusiness, Mail, Phone } from 'lucide-react';
+import { Mail, Phone } from 'lucide-react';
 import { useContent } from '../content/context';
 import { phoneHref } from '../content/contact';
-import { ExternalLink } from './ExternalLink';
+import { SocialLinks } from './SocialLinks';
 
 export function ProfileLinks({
   className = '',
@@ -14,14 +14,7 @@ export function ProfileLinks({
   const telephone = phoneHref(profile.phone);
   return (
     <div className={'profile-links ' + className}>
-      <ExternalLink href={profile.githubUrl}>
-        <CodeXml size={18} aria-hidden="true" />
-        GitHub
-      </ExternalLink>
-      <ExternalLink href={profile.linkedinUrl}>
-        <BriefcaseBusiness size={18} aria-hidden="true" />
-        LinkedIn
-      </ExternalLink>
+      <SocialLinks />
       {profile.email ? (
         <a href={'mailto:' + profile.email}>
           <Mail size={18} aria-hidden="true" />

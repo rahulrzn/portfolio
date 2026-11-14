@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import AxeBuilder from '@axe-core/playwright';
 import { defaults } from '../src/content/defaults';
 import { contentSchema } from '../src/content/schema';
@@ -51,7 +51,7 @@ test('public routes are accessible and fit desktop, tablet and small phones', as
   expect(errors).toEqual([]);
 });
 
-test('schema-valid long edited content wraps on public routes', async ({ page }) => {
+test('schema-valid long edited content wraps on public routes', async ({ page, publishContent }) => {
   const content = structuredClone(defaults);
   content.profile.name = 'N'.repeat(100);
   content.profile.headline = 'H'.repeat(180);
@@ -74,21 +74,7 @@ test('schema-valid long edited content wraps on public routes', async ({ page })
   content.profile.opportunities.preferredLocations = ['L'.repeat(80)];
   content.profile.opportunities.employmentTypes = ['E'.repeat(120)];
   contentSchema.parse(content);
-  await page.addInitScript(
-    (value) =>
-      localStorage.setItem(
-        'rahul-portfolio:content:v1',
-        JSON.stringify({
-          version: 1,
-          revision: 1,
-          updatedAt: '',
-          activity: [],
-          draft: value,
-          published: value,
-        }),
-      ),
-    content,
-  );
+  await publishContent(content);
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const route of [
@@ -107,7 +93,7 @@ test('schema-valid long edited content wraps on public routes', async ({ page })
   }
 });
 
-test('image failures and damaged content recover to usable defaults', async ({ page }) => {
+test('broken legacy browser data cannot change shared content and image failures have a fallback', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('rahul-portfolio:content:v1', '{broken');
     localStorage.setItem('rahul-portfolio:last-valid:v1', '{also-broken');
@@ -275,25 +261,17 @@ test('animated theme toggle persists and both theme palettes stay accessible', a
   await expect(page.getByRole('button', { name: 'Switch to light mode' })).toBeVisible();
 });
 
-test('configured social and telephone links are available on the public site', async ({ page }) => {
+test('configured social and telephone links are available on the public site', async ({ page, publishContent }) => {
   const content = structuredClone(defaults);
   content.profile.githubUrl = 'https://github.com/example';
   content.profile.linkedinUrl = 'https://www.linkedin.com/in/example/';
   content.profile.email = 'portfolio@example.com';
   content.profile.phone = '+1 (202) 555-0123';
-  await page.addInitScript((value) => {
-    localStorage.setItem(
-      'rahul-portfolio:content:v1',
-      JSON.stringify({
-        version: 1,
-        revision: 1,
-        updatedAt: '',
-        activity: [],
-        draft: value,
-        published: value,
-      }),
-    );
-  }, content);
+  content.socialLinks = [
+    { id: 'contact-github', platform: 'github', url: content.profile.githubUrl, enabled: true, order: 0 },
+    { id: 'contact-linkedin', platform: 'linkedin', url: content.profile.linkedinUrl, enabled: true, order: 1 },
+  ];
+  await publishContent(content);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/contact');
   const links = page.locator('.contact-information .profile-links');
@@ -315,7 +293,7 @@ test('configured social and telephone links are available on the public site', a
 });
 
 test('opportunities show the supplied career preferences and can be hidden through content', async ({
-  page,
+  page, publishContent,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -333,21 +311,7 @@ test('opportunities show the supplied career preferences and can be hidden throu
   await expect(page).toHaveURL(/\/contact$/);
   const content = structuredClone(defaults);
   content.profile.opportunities.visible = false;
-  await page.evaluate(
-    (value) =>
-      localStorage.setItem(
-        'rahul-portfolio:content:v1',
-        JSON.stringify({
-          version: 1,
-          revision: 2,
-          updatedAt: '',
-          activity: [],
-          draft: value,
-          published: value,
-        }),
-      ),
-    content,
-  );
+  await publishContent(content);
   await page.goto('/about');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'About me', exact: true })).toBeVisible();

@@ -1,4 +1,8 @@
+import { apiRequest } from './api';
+import { apiConfig } from '../config';
+
 export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+const MAX_SHARED_IMAGE_BYTES = 1_000_000;
 const MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 export function validateImageFile(file: Blob) {
   if (!MIME_TYPES.includes(file.type))
@@ -82,13 +86,8 @@ async function transaction<T>(
     tx.onabort = () => reject(new Error('Image storage was interrupted.'));
   });
 }
-export const imageStore = {
-  async put(file: Blob): Promise<string> {
-    await decodeImage(file);
-    const id = `image:${crypto.randomUUID()}`;
-    await transaction('readwrite', (store) => store.put(file, id));
-    return id;
-  },
+// Read only: previous browser uploads remain available for an explicit portable migration.
+export const legacyImageStore = {
   async get(id: string): Promise<Blob | null> {
     try {
       return (await transaction('readonly', (store) => store.get(id))) ?? null;
@@ -96,7 +95,46 @@ export const imageStore = {
       return null;
     }
   },
+};
+
+async function optimizeImage(file: Blob, image: HTMLImageElement): Promise<Blob> {
+  if (file.size <= MAX_SHARED_IMAGE_BYTES) return file;
+  const canvas = document.createElement('canvas');
+  const scale = Math.min(1, 1800 / Math.max(image.naturalWidth, image.naturalHeight));
+  canvas.width = Math.round(image.naturalWidth * scale);
+  canvas.height = Math.round(image.naturalHeight * scale);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('This browser could not optimize the image. Choose an image smaller than 1 MB.');
+  for (let attempt = 0; attempt < 4; attempt++) {
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const optimized = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86 - attempt * 0.1));
+    if (optimized && optimized.size <= MAX_SHARED_IMAGE_BYTES) return optimized;
+    canvas.width = Math.max(64, Math.round(canvas.width * 0.8));
+    canvas.height = Math.max(64, Math.round(canvas.height * 0.8));
+  }
+  throw new Error('The optimized image is still too large. Choose a smaller image.');
+}
+
+export function mediaUrl(reference: string): string {
+  return `${apiConfig.baseUrl}/api/media/${encodeURIComponent(reference.replace(/^image:/, ''))}`;
+}
+
+export const imageStore = {
+  async put(file: Blob): Promise<string> {
+    const image = await decodeImage(file);
+    const upload = await optimizeImage(file, image);
+    const response = await apiRequest<{ id: string }>('/api/admin/media', { method: 'POST', body: upload, headers: { 'Content-Type': upload.type } });
+    if (!/^image:[a-zA-Z0-9-]{8,80}$/.test(response.id)) throw new Error('The server did not return a valid image reference. Try again.');
+    return response.id;
+  },
+  async get(id: string): Promise<Blob | null> {
+    try {
+      const response = await fetch(mediaUrl(id), { credentials: 'same-origin', signal: AbortSignal.timeout(15000) });
+      if (!response.ok || !MIME_TYPES.includes(response.headers.get('Content-Type') ?? '')) return null;
+      return await response.blob();
+    } catch { return null; }
+  },
   async remove(id: string): Promise<void> {
-    await transaction('readwrite', (store) => store.delete(id));
+    await apiRequest(`/api/admin/media/${encodeURIComponent(id.replace(/^image:/, ''))}`, { method: 'DELETE' });
   },
 };

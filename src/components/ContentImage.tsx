@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { imageStore } from '../content/images';
+import { useState, type ReactNode } from 'react';
+import { mediaUrl } from '../content/images';
 export function ContentImage({
   reference,
   alt,
@@ -13,29 +13,9 @@ export function ContentImage({
   fallback: ReactNode;
   priority?: boolean;
 }) {
-  const [source, setSource] = useState('');
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let active = true;
-    let blobUrl = '';
-    setFailed(false);
-    if (!reference.startsWith('image:')) {
-      setSource(reference);
-      return;
-    }
-    setSource('');
-    imageStore.get(reference).then((blob) => {
-      if (active && blob) {
-        blobUrl = URL.createObjectURL(blob);
-        setSource(blobUrl);
-      }
-    });
-    return () => {
-      active = false;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [reference]);
-  return source && !failed ? (
+  const [failedReference, setFailedReference] = useState('');
+  const source = reference.startsWith('image:') ? mediaUrl(reference) : reference;
+  return source && failedReference !== reference ? (
     <img
       className={className}
       src={source}
@@ -43,7 +23,7 @@ export function ContentImage({
       loading={priority ? 'eager' : 'lazy'}
       fetchPriority={priority ? 'high' : 'auto'}
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setFailedReference(reference)}
     />
   ) : (
     <>{fallback}</>

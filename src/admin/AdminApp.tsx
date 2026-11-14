@@ -1,7 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowUpRight,
@@ -15,204 +12,84 @@ import {
   X,
   LogOut,
   Eye,
-  EyeOff,
-  ShieldAlert,
+  BookOpen,
+  Link2,
+  Mail,
+  CheckCircle2,
+  Clock3,
+  LoaderCircle,
+  AlertCircle,
+  Globe2,
+  Laptop,
 } from 'lucide-react';
-import { motion, MotionConfig } from 'motion/react';
+import { MotionConfig } from 'motion/react';
 import { ContentProvider, useWorkspace } from '../content/context';
+import { getRepository } from '../content/repository';
+import { sessionApi } from '../content/api';
 import PublicRoutes from '../public/PublicRoutes';
-import { useTheme } from '../components/ThemeToggle';
+import { useTheme, type Theme } from '../components/ThemeToggle';
 import { AdminTools, useAdmin } from './workspace';
 import { useHistoryGuard } from './useHistoryGuard';
 import { useMobileDrawer } from './useMobileDrawer';
+import Login, { StudioMark, ThemeControl } from './Login';
+import Dashboard from './Dashboard';
+import SessionRenewal from './SessionRenewal';
 import './admin.css';
 
 const ProfilePage = lazy(() => import('./ProfilePage'));
+const AboutPage = lazy(() => import('./AboutPage'));
 const ProjectsPage = lazy(() => import('./ProjectsPage'));
 const SkillsPage = lazy(() => import('./SkillsPage'));
 const ResearchPage = lazy(() => import('./ResearchPage'));
+const SocialLinksPage = lazy(() => import('./SocialLinksPage'));
+const ContactPage = lazy(() => import('./ContactPage'));
 const SettingsPage = lazy(() => import('./SettingsPage'));
-const gateSchema = z.object({
-  phrase: z
-    .string()
-    .min(8, 'Enter a session phrase with at least 8 characters.')
-    .max(200, 'Use a phrase of 200 characters or fewer.'),
-});
-const nav = [
+
+type Session = Awaited<ReturnType<typeof sessionApi.read>>;
+const navigation = [
   ['dashboard', 'Overview', LayoutDashboard],
   ['profile', 'Profile', UserRound],
+  ['about', 'About', BookOpen],
   ['projects', 'Projects', FolderKanban],
   ['skills', 'Skills', Tags],
   ['research', 'Research', FlaskConical],
+  ['social', 'Social links', Link2],
+  ['contact', 'Contact', Mail],
   ['settings', 'Settings', Settings2],
 ] as const;
 
-function Login({ onEnter }: { onEnter: () => void }) {
-  const [show, setShow] = useState(false);
-  const form = useForm({ defaultValues: { phrase: '' }, resolver: zodResolver(gateSchema) });
-  return (
-    <main className="admin-login">
-      <Link className="admin-login-back" to="/">
-        View portfolio <ArrowUpRight size={16} />
-      </Link>
-      <motion.section
-        className="admin-login-card"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        <div className="admin-login-mark">
-          <ShieldAlert size={28} aria-hidden="true" />
-        </div>
-        <h1>Local development workspace</h1>
-        <p className="admin-login-lead">A place to shape your portfolio.</p>
-        <div className="admin-local-note">
-          <strong>This gate is not authentication.</strong>
-          <p>
-            Any 8-character phrase opens this browser-local editor. Your phrase is not stored. This
-            workspace has no secure login or remote account.
-          </p>
-        </div>
-        <form
-          noValidate
-          onSubmit={form.handleSubmit(() => {
-            form.reset();
-            onEnter();
-          })}
-        >
-          <Controller
-            control={form.control}
-            name="phrase"
-            render={({ field, fieldState }) => (
-              <div className="admin-field">
-                <label htmlFor="admin-session">Session phrase</label>
-                <div className="admin-password">
-                  <input
-                    {...field}
-                    id="admin-session"
-                    type={show ? 'text' : 'password'}
-                    autoComplete="off"
-                    aria-invalid={!!fieldState.error}
-                    aria-describedby={
-                      fieldState.error ? 'admin-session-error' : 'admin-session-hint'
-                    }
-                  />
-                  <button
-                    type="button"
-                    aria-label={show ? 'Hide session phrase' : 'Show session phrase'}
-                    onClick={() => setShow((value) => !value)}
-                  >
-                    {show ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-                <small id="admin-session-hint">Use any phrase with 8 or more characters.</small>
-                {fieldState.error ? (
-                  <p className="admin-field-error" role="alert" id="admin-session-error">
-                    {fieldState.error.message}
-                  </p>
-                ) : null}
-              </div>
-            )}
-          />
-          <button className="button admin-login-submit" type="submit">
-            Open workspace
-          </button>
-        </form>
-        <p className="admin-login-foot">
-          Edits persist in this browser. Reloading closes the session. Export a backup to move
-          content between devices.
-        </p>
-      </motion.section>
-    </main>
-  );
-}
-function Dashboard() {
-  const { snapshot } = useWorkspace();
-  const hasDraft = JSON.stringify(snapshot.draft) !== JSON.stringify(snapshot.published);
-  return (
-    <>
-      <header className="admin-page-heading">
-        <h1>Workspace overview</h1>
-        <p>Your portfolio, from first draft to public view.</p>
-      </header>
-      <section className="admin-overview">
-        <div>
-          <h2>
-            {hasDraft ? 'Your saved draft has changes.' : 'Your draft matches the public view.'}
-          </h2>
-          <p>
-            Save individual forms, review the portfolio in preview, then publish the saved draft
-            when it is ready.
-          </p>
-          <Link className="button secondary" to="/admin/preview">
-            Preview saved draft <ArrowUpRight size={16} />
-          </Link>
-        </div>
-        <div className="admin-counts">
-          <div>
-            <strong>{snapshot.draft.projects.length}</strong>
-            <span>Draft projects</span>
-          </div>
-          <div>
-            <strong>
-              {snapshot.published.projects.filter((item) => item.status === 'published').length}
-            </strong>
-            <span>Public projects</span>
-          </div>
-          <div>
-            <strong>{snapshot.draft.research.length}</strong>
-            <span>Research entries</span>
-          </div>
-        </div>
-      </section>
-      <div className="admin-dashboard-grid">
-        <section className="admin-panel">
-          <h2>Continue editing</h2>
-          <div className="admin-quick-links">
-            <Link to="/admin/profile">
-              Update your profile <ArrowUpRight size={17} />
-            </Link>
-            <Link to="/admin/projects">
-              Manage project stories <ArrowUpRight size={17} />
-            </Link>
-            <Link to="/admin/settings">
-              Export a portable backup <ArrowUpRight size={17} />
-            </Link>
-          </div>
-        </section>
-        <section className="admin-panel">
-          <h2>Recent activity</h2>
-          {snapshot.activity.length ? (
-            <ol className="admin-activity">
-              {snapshot.activity.slice(0, 8).map((item) => (
-                <li key={item.id}>
-                  <span>{item.label}</span>
-                  <time dateTime={item.at}>
-                    {new Date(item.at).toLocaleString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </time>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="muted">Saved edits and publication actions will appear here.</p>
-          )}
-        </section>
-      </div>
-    </>
-  );
-}
-function Shell({ onSignOut }: { onSignOut: () => void }) {
+function Shell({
+  session,
+  onSignOut,
+  onSignIn,
+  theme,
+  onToggleTheme,
+}: {
+  session: Session;
+  onSignOut: () => Promise<void>;
+  onSignIn: (password: string) => Promise<void>;
+  theme: Theme;
+  onToggleTheme: () => void;
+}) {
   const { snapshot, repository } = useWorkspace();
-  const { dirty, guard, confirm, notify } = useAdmin();
+  const {
+    dirty,
+    busy,
+    operation,
+    authenticationRequired,
+    clearAuthenticationRequirement,
+    guard,
+    confirm,
+    notify,
+    run,
+    setDirty,
+  } = useAdmin();
   const [menu, setMenu] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { sidebar, trigger, mobile } = useMobileDrawer(menu, setMenu);
-  useHistoryGuard(dirty);
+  const pending = busy || !!snapshot.pending;
+  useHistoryGuard(dirty, pending);
   useEffect(() => {
     setMenu(false);
     document.querySelector<HTMLElement>('.admin-main')?.focus({ preventScroll: true });
@@ -220,33 +97,65 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
   }, [location.pathname]);
   const hasDraft = JSON.stringify(snapshot.draft) !== JSON.stringify(snapshot.published);
   const isPreview = location.pathname.startsWith('/admin/preview');
-  const captureNavigation = (event: React.MouseEvent<HTMLElement>) => {
+  const current = navigation.find(([path]) => location.pathname.startsWith('/admin/' + path));
+  const local = session.environment === 'local';
+  const captureNavigation = (event: MouseEvent<HTMLElement>) => {
     const anchor = (event.target as HTMLElement).closest('a');
     if (
       !anchor ||
-      !dirty ||
+      (!dirty && !pending) ||
       event.defaultPrevented ||
       event.button !== 0 ||
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey ||
+      event.altKey ||
       anchor.target === '_blank'
     )
       return;
     const url = new URL(anchor.href);
     if (url.origin !== window.location.origin) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
     event.preventDefault();
     event.stopPropagation();
     void guard(() => navigate(url.pathname + url.search + url.hash));
   };
+  const publish = async () => {
+    if (dirty || pending || !hasDraft) return;
+    if (
+      !(await confirm({
+        title: 'Publish saved draft?',
+        message: local
+          ? 'This makes the complete saved draft public in your local development database. Your live portfolio is unchanged. Review Preview before continuing.'
+          : 'This makes the complete saved draft public on your live portfolio. Visitors will see this version. Review Preview before continuing.',
+        action: 'Publish now',
+      }))
+    )
+      return;
+    try {
+      await run(async () => {
+        await repository.publish();
+      }, 'Publishing saved draft…');
+      notify(
+        local
+          ? 'Saved draft published to your local workspace.'
+          : 'Saved draft published. Your public portfolio is updated.',
+      );
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Publish failed. Try again.', true);
+    }
+  };
   if (isPreview)
     return (
-      <div onClickCapture={captureNavigation}>
+      <div className="admin-preview" onClickCapture={captureNavigation}>
         <div className="admin-preview-banner">
           <span>
-            <strong>Saved draft preview</strong> · Public pages remain unchanged until Publish.
+            <strong>Saved draft preview</strong>
+            <span>Only saved changes are shown. Publish makes them public.</span>
           </span>
-          <Link to="/admin/dashboard">Back to workspace</Link>
+          <Link className="button small secondary" to="/admin/dashboard">
+            Back to workspace
+          </Link>
         </div>
         <Routes>
           <Route
@@ -274,34 +183,66 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
         aria-label="Workspace navigation"
       >
         <Link className="admin-brand" to="/admin/dashboard">
-          <span className="admin-brand-monogram">R.</span>
+          <StudioMark />
           <span>
-            Portfolio
-            <br />
-            <small>Content workspace</small>
+            Portfolio studio<small>Rahul Reji R.</small>
           </span>
         </Link>
         <button
-          className="admin-menu-close"
+          className="admin-menu-close admin-icon-button"
           type="button"
           aria-label="Close navigation"
           onClick={() => setMenu(false)}
         >
-          <X size={21} />
+          <X size={21} aria-hidden="true" />
         </button>
-        <nav>
-          {nav.map(([path, label, Icon]) => (
-            <NavLink key={path} to={`/admin/${path}`}>
+        <nav aria-label="Workspace sections">
+          {navigation.map(([path, label, Icon]) => (
+            <NavLink key={path} to={`/admin/${path}`} aria-disabled={pending || undefined}>
               <Icon size={19} aria-hidden="true" />
-              {label}
+              <span>{label}</span>
+              {path === 'projects' ? (
+                <small>{snapshot.draft.projects.length}</small>
+              ) : path === 'research' ? (
+                <small>{snapshot.draft.research.length}</small>
+              ) : null}
             </NavLink>
           ))}
         </nav>
         <div className="admin-sidebar-bottom">
-          <p>Local development mode</p>
-          <small>No account. No remote publishing.</small>
-          <button type="button" onClick={() => guard(onSignOut)}>
-            <LogOut size={17} />
+          <div className="admin-environment">
+            {local ? (
+              <Laptop size={17} aria-hidden="true" />
+            ) : (
+              <Globe2 size={17} aria-hidden="true" />
+            )}
+            <strong>{local ? 'Local workspace' : 'Live portfolio'}</strong>
+          </div>
+          <p>
+            {local ? 'Edits stay in your local database.' : 'Publishing updates your public site.'}
+          </p>
+          <Link className="admin-view-site" to="/" target="_blank" rel="noopener">
+            View portfolio <ArrowUpRight size={16} aria-hidden="true" />
+          </Link>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              void guard(async () => {
+                try {
+                  await run(onSignOut, 'Signing out…');
+                  clearAuthenticationRequirement();
+                  setDirty(false);
+                } catch (error) {
+                  notify(
+                    error instanceof Error ? error.message : 'Sign-out failed. Try again.',
+                    true,
+                  );
+                }
+              })
+            }
+          >
+            <LogOut size={17} aria-hidden="true" />
             Sign out
           </button>
         </div>
@@ -320,109 +261,132 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
           <button
             ref={trigger}
             aria-controls="admin-navigation"
-            className="admin-menu-open"
+            className="admin-menu-open admin-icon-button"
             type="button"
             aria-label="Open navigation"
             aria-expanded={menu}
             onClick={() => setMenu(true)}
           >
-            <Menu size={22} />
+            <Menu size={22} aria-hidden="true" />
           </button>
-          <div className="admin-draft-status">
-            <span
-              className={
-                dirty || hasDraft ? 'admin-status-dot admin-status-pending' : 'admin-status-dot'
-              }
-            />
-            {dirty ? 'Unsaved changes' : hasDraft ? 'Saved draft changes' : 'Draft is up to date'}
+          <div className="admin-toolbar-context">
+            <span>Workspace</span>
+            <strong>{current?.[1] ?? 'Overview'}</strong>
+          </div>
+          <div className="admin-draft-status" role="status">
+            {pending ? (
+              <LoaderCircle className="admin-spinner" size={16} aria-hidden="true" />
+            ) : dirty ? (
+              <Clock3 size={16} aria-hidden="true" />
+            ) : (
+              <CheckCircle2 size={16} aria-hidden="true" />
+            )}
+            <span>
+              {pending
+                ? operation || 'Saving changes…'
+                : dirty
+                  ? 'Unsaved changes'
+                  : hasDraft
+                    ? 'Draft saved'
+                    : 'All changes published'}
+            </span>
           </div>
           <div className="admin-actions">
-            <Link className="button small secondary" to="/admin/preview">
-              Preview saved draft
+            <ThemeControl theme={theme} onToggle={onToggleTheme} />
+            <Link
+              className="button small secondary admin-preview-action"
+              to="/admin/preview"
+              aria-label="Preview saved draft"
+              aria-disabled={pending || undefined}
+            >
+              <Eye size={16} aria-hidden="true" />
+              <span>Preview</span>
             </Link>
             <button
               type="button"
               className="button small"
-              disabled={dirty || !hasDraft}
-              title={dirty ? 'Save or discard form changes before publishing.' : undefined}
-              onClick={async () => {
-                if (
-                  await confirm({
-                    title: 'Publish saved draft?',
-                    message:
-                      'Review your saved draft in Preview first. Publish will replace the public portfolio in this browser only. It does not update your deployed website or any other visitor’s browser. Unsaved form text is never published.',
-                    action: 'Publish now',
-                  })
-                ) {
-                  try {
-                    repository.publish();
-                    notify(
-                      'Published saved draft in this browser. Your deployed site was not changed.',
-                    );
-                  } catch (error) {
-                    notify(error instanceof Error ? error.message : 'Publish failed.', true);
-                  }
-                }
-              }}
+              disabled={dirty || pending || !hasDraft}
+              title={
+                dirty
+                  ? 'Save or discard your form changes before publishing.'
+                  : !hasDraft
+                    ? 'Your saved draft is already published.'
+                    : undefined
+              }
+              onClick={() => void publish()}
             >
               Publish
             </button>
           </div>
         </header>
-        <div className="admin-publication-notice">
-          <ShieldAlert size={17} aria-hidden="true" />
-          <p>
-            <strong>Browser-local publication.</strong> Saved drafts and published changes live on
-            this device. Export a backup to preserve or move them.
-          </p>
-        </div>
+        {authenticationRequired ? <SessionRenewal onSignIn={onSignIn} /> : null}
         {snapshot.warning ? (
-          <p className="admin-warning" role="alert">
-            {snapshot.warning} Open Settings to export the damaged data.
-          </p>
+          <div className="admin-warning" role="alert">
+            <AlertCircle size={18} aria-hidden="true" />
+            <span>{snapshot.warning}</span>
+          </div>
         ) : null}
         <main id="admin-main" className="admin-main" tabIndex={-1}>
-          <Suspense fallback={<p role="status">Opening editor…</p>}>
+          <Suspense
+            fallback={
+              <p className="admin-opening" role="status">
+                <LoaderCircle className="admin-spinner" size={18} aria-hidden="true" />
+                Opening editor…
+              </p>
+            }
+          >
             <Routes>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="login" element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="profile" element={<ProfilePage />} />
+              <Route path="about" element={<AboutPage />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="skills" element={<SkillsPage />} />
               <Route path="research" element={<ResearchPage />} />
+              <Route path="social" element={<SocialLinksPage />} />
+              <Route path="social-links" element={<Navigate to="/admin/social" replace />} />
+              <Route path="contact" element={<ContactPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
             </Routes>
           </Suspense>
         </main>
         <footer className="admin-shell-footer">
-          <span>Saved draft and public content are separate.</span>
+          <span>
+            {local ? 'Local database' : 'Live portfolio'} · Saved drafts stay private until
+            published.
+          </span>
           <button
             type="button"
             className="text-link"
-            disabled={!hasDraft}
+            disabled={!hasDraft || pending}
             onClick={() =>
-              guard(() => {
-                void (async () => {
-                  if (
-                    await confirm({
-                      title: 'Discard saved draft changes?',
-                      message:
-                        'Replace the entire saved draft with the currently published content. Export a backup first if you need these edits.',
-                      action: 'Discard saved draft',
-                      destructive: true,
-                    })
-                  ) {
-                    try {
-                      repository.revert();
-                      navigate('/admin/dashboard');
-                      notify('Saved draft reverted to published content.');
-                    } catch (error) {
-                      notify(error instanceof Error ? error.message : 'Revert failed.', true);
-                    }
-                  }
-                })();
+              void guard(async () => {
+                if (
+                  !(await confirm({
+                    title: 'Discard saved draft changes?',
+                    message:
+                      'Replace the complete saved draft with the currently published portfolio. Export a backup in Settings first if you need to keep these edits.',
+                    action: 'Discard saved draft',
+                    destructive: true,
+                  }))
+                )
+                  return;
+                try {
+                  await run(async () => {
+                    await repository.revert();
+                  });
+                  navigate('/admin/dashboard');
+                  notify('Saved draft restored to the published portfolio.');
+                } catch (error) {
+                  notify(
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not discard the saved draft. Try again.',
+                    true,
+                  );
+                }
               })
             }
           >
@@ -433,13 +397,61 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
     </div>
   );
 }
+
 export default function AdminApp() {
-  useTheme();
-  const [session, setSession] = useState(false);
+  const [theme, toggleTheme] = useTheme();
+  const [phase, setPhase] = useState<'checking' | 'login' | 'loading' | 'ready' | 'unavailable'>(
+    'checking',
+  );
+  const [session, setSession] = useState<Session | null>(null);
+  const [failure, setFailure] = useState('');
+  const repository = getRepository();
   const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const location = useLocation();
+  const path = useRef(location.pathname);
+  path.current = location.pathname;
+  const returnTo = useRef(
+    location.pathname === '/admin/login' ? '/admin/dashboard' : location.pathname,
+  );
+  const generation = useRef(0);
+  const checkSession = useCallback(async () => {
+    const request = ++generation.current;
+    setPhase('checking');
+    setFailure('');
+    try {
+      const next = await sessionApi.read();
+      if (request !== generation.current) return;
+      setSession(next);
+      if (!next.authenticated) {
+        repository.leaveAdmin();
+        setPhase('login');
+        navigateRef.current('/admin/login', { replace: true });
+        return;
+      }
+      setPhase('loading');
+      await repository.loadAdmin();
+      if (request !== generation.current) return;
+      setPhase('ready');
+      if (path.current === '/admin/login') navigateRef.current(returnTo.current, { replace: true });
+    } catch (error) {
+      if (request !== generation.current) return;
+      setFailure(
+        error instanceof Error ? error.message : 'Could not open the workspace. Try again.',
+      );
+      setPhase('unavailable');
+    }
+  }, [repository]);
   useEffect(() => {
-    document.title = 'Local portfolio workspace';
+    void checkSession();
+    return () => {
+      generation.current += 1;
+      repository.leaveAdmin();
+    };
+  }, [checkSession, repository]);
+  useEffect(() => {
+    document.title = 'Portfolio studio · Rahul Reji R.';
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     const owned = !robots;
     if (!robots) {
@@ -454,25 +466,91 @@ export default function AdminApp() {
       else if (robots) robots.content = previous;
     };
   }, []);
+  const login = async (password: string) => {
+    const next = await sessionApi.login(password);
+    if (!next.authenticated)
+      throw new Error('Sign-in was not accepted. Check your password and try again.');
+    setSession(next);
+    setPhase('loading');
+    try {
+      await repository.loadAdmin();
+      setPhase('ready');
+      navigate(returnTo.current, { replace: true });
+    } catch (error) {
+      setFailure(
+        error instanceof Error ? error.message : 'Could not load saved content. Try again.',
+      );
+      setPhase('unavailable');
+    }
+  };
+  const signOut = async () => {
+    await sessionApi.logout();
+    repository.leaveAdmin();
+    setSession(null);
+    returnTo.current = '/admin/dashboard';
+    setPhase('login');
+    navigate('/admin/login', { replace: true });
+  };
+  const renewSession = async (password: string) => {
+    const next = await sessionApi.login(password);
+    if (!next.authenticated)
+      throw new Error('Sign-in was not accepted. Check your password and try again.');
+    setSession(next);
+  };
   return (
     <MotionConfig reducedMotion="user">
       <AdminTools>
-        {session ? (
+        {phase === 'ready' && session ? (
           <Shell
-            onSignOut={() => {
-              setSession(false);
-              navigate('/admin/login', { replace: true });
-            }}
+            session={session}
+            onSignOut={signOut}
+            onSignIn={renewSession}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
-        ) : location.pathname === '/admin/login' ? (
+        ) : phase === 'login' ? (
           <Login
-            onEnter={() => {
-              setSession(true);
-              navigate('/admin/dashboard', { replace: true });
-            }}
+            onLogin={login}
+            environment={session?.environment}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
         ) : (
-          <Navigate to="/admin/login" replace />
+          <main className="admin-login">
+            <header className="admin-login-topline">
+              <Link className="admin-login-back" to="/">
+                View portfolio <ArrowUpRight size={16} aria-hidden="true" />
+              </Link>
+              <ThemeControl theme={theme} onToggle={toggleTheme} />
+            </header>
+            <section className="admin-login-card admin-connection-card">
+              <StudioMark />
+              <h1>
+                {phase === 'unavailable'
+                  ? 'Workspace unavailable'
+                  : phase === 'loading'
+                    ? 'Opening your workspace'
+                    : 'Checking your session'}
+              </h1>
+              {phase === 'unavailable' ? (
+                <>
+                  <p role="alert" className="admin-connection-error">
+                    {failure}
+                  </p>
+                  <button type="button" className="button" onClick={() => void checkSession()}>
+                    Try again
+                  </button>
+                </>
+              ) : (
+                <p role="status" className="admin-opening">
+                  <LoaderCircle className="admin-spinner" size={19} aria-hidden="true" />
+                  {phase === 'loading'
+                    ? 'Loading your saved draft and public content…'
+                    : 'Restoring your secure sign-in…'}
+                </p>
+              )}
+            </section>
+          </main>
         )}
       </AdminTools>
     </MotionConfig>

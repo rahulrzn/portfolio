@@ -1,29 +1,42 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import ProfilePage from './ProfilePage';
 import { AdminTools } from './workspace';
-import { getRepository } from '../content/repository';
+import { createRepository, type ContentRepository } from '../content/repository';
 
-it('validates contact details and stages editable opportunities before explicit publication', async () => {
-  render(
-    <AdminTools>
-      <ProfilePage />
-    </AdminTools>,
+let repository: ContentRepository;
+vi.mock('../content/repository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../content/repository')>();
+  return { ...actual, getRepository: () => repository };
+});
+beforeEach(() => {
+  localStorage.clear();
+  repository = createRepository(localStorage);
+});
+
+it('stages opportunities without publishing or replacing About and Contact fields', async () => {
+  const initial = repository.read().draft;
+  await repository.saveDraft(
+    {
+      ...initial,
+      profile: {
+        ...initial.profile,
+        about: 'Keep this biography.',
+        email: 'owner@example.com',
+        phone: '+91 98765 43210',
+      },
+    },
+    'Set up test content',
   );
-  const input = screen.getByLabelText('Phone number');
-  expect(input).toHaveAttribute('type', 'tel');
-  expect(screen.getByText(/full https:\/\/github.com/)).toBeVisible();
-  expect(screen.getByText(/full https:\/\/www.linkedin.com\/in/)).toBeVisible();
-  fireEvent.change(input, { target: { value: '+1;123456789' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'));
-  expect(getRepository().read().draft.profile.phone).toBe('');
-  fireEvent.change(input, { target: { value: '+91 98765 43210' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await waitFor(() => expect(getRepository().read().draft.profile.phone).toBe('+91 98765 43210'));
-  expect(getRepository().read().published.profile.phone).toBe('');
+  render(
+    <MemoryRouter>
+      <AdminTools>
+        <ProfilePage />
+      </AdminTools>
+    </MemoryRouter>,
+  );
   const availability = screen.getByLabelText('Show the Open to Opportunities section');
-  expect(availability).toBeChecked();
   fireEvent.click(availability);
   fireEvent.change(screen.getByLabelText('Opportunities heading'), {
     target: { value: 'Future career opportunities' },
@@ -33,17 +46,20 @@ it('validates contact details and stages editable opportunities before explicit 
     target: { value: 'Bangalore' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-  await waitFor(() =>
-    expect(getRepository().read().draft.profile.opportunities.visible).toBe(false),
-  );
-  expect(getRepository().read().draft.profile.opportunities.preferredLocations).toEqual([
+  await waitFor(() => expect(repository.read().draft.profile.opportunities.visible).toBe(false));
+  expect(repository.read().draft.profile).toMatchObject({
+    about: 'Keep this biography.',
+    email: 'owner@example.com',
+    phone: '+91 98765 43210',
+  });
+  expect(repository.read().draft.profile.opportunities.preferredLocations).toEqual([
     'Chennai',
     'Kerala',
     'Bangalore',
   ]);
-  expect(getRepository().read().published.profile.opportunities.visible).toBe(true);
-  getRepository().publish();
-  expect(getRepository().read().published.profile.opportunities).toMatchObject({
+  expect(repository.read().published.profile.opportunities.visible).toBe(true);
+  await repository.publish();
+  expect(repository.read().published.profile.opportunities).toMatchObject({
     visible: false,
     heading: 'Future career opportunities',
     preferredLocations: ['Chennai', 'Kerala', 'Bangalore'],

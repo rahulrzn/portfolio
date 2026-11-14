@@ -1,0 +1,49 @@
+
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rahul-portfolio-j94",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-11-13",
+
+  // Local development uses a separate local database.
+  "vars": {
+    "APP_ORIGIN": "http://127.0.0.1:5173"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "PORTFOLIO_DB",
+      "database_name": "rahul-portfolio-local",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "env": {
+    "production": {
+      "vars": {
+        "APP_ORIGIN": "https://rahul-portfolio-j94.pages.dev"
+      },
+      "d1_databases": [
+        {
+          "binding": "PORTFOLIO_DB",
+          "database_name": "rahul-portfolio-content",
+          "database_id": "a99003ca-dc1d-4877-8a2d-1cb8b9949cc2",
+          "migrations_dir": "migrations"
+        }
+      ]
+    },
+
+    "preview": {
+      "vars": {},
+      "d1_databases": [
+        {
+          "binding": "PORTFOLIO_DB",
+          "database_name": "rahul-portfolio-preview",
+          "database_id": "REPLACE_WITH_PREVIEW_D1_DATABASE_ID",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
+}

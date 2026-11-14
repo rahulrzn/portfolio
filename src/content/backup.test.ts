@@ -22,3 +22,12 @@ it('rejects invalid portable backup content without changing the draft', async (
   ).rejects.toThrow(/invalid|unsupported/i);
   expect(repository.exportSnapshot()).toBe(before);
 });
+
+it('does not report a plain backup import as complete when its shared save is rejected', async () => {
+  const repository = createRepository(localStorage);
+  const failure = Promise.reject(new Error('The shared database rejected the import.'));
+  void failure.catch(() => {});
+  const spy = vi.spyOn(repository, 'importSnapshot').mockReturnValue(failure);
+  await expect(importBackup(repository.exportSnapshot(), repository)).rejects.toThrow('shared database rejected');
+  spy.mockRestore();
+});

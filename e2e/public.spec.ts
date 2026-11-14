@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 test('public home presents the real identity and project content without login', async ({
   page,
 }) => {

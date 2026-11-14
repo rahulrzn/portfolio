@@ -1,1 +1,2 @@
-/* /index.html 200
+# Cloudflare Pages serves existing route HTML and uses its native SPA fallback
+# for new client-side routes. A catch-all rewrite would also loop on index.html.

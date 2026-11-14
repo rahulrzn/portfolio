@@ -99,11 +99,19 @@ export function Field<T extends FieldValues>({
               value={field.value ?? ''}
               id={id}
               rows={5}
+              aria-required={required || undefined}
               aria-invalid={!!fieldState.error}
               aria-describedby={fieldState.error ? `${id}-error` : hint ? `${id}-hint` : undefined}
             />
           ) : type === 'select' ? (
-            <select {...field} value={field.value ?? ''} id={id} aria-invalid={!!fieldState.error}>
+            <select
+              {...field}
+              value={field.value ?? ''}
+              id={id}
+              aria-invalid={!!fieldState.error}
+              aria-required={required || undefined}
+              aria-describedby={fieldState.error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+            >
               {options.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -125,6 +133,7 @@ export function Field<T extends FieldValues>({
               }
               id={id}
               type={type}
+              aria-required={required || undefined}
               min={type === 'number' ? 0 : undefined}
               max={type === 'number' ? 10000 : undefined}
               aria-invalid={!!fieldState.error}
@@ -179,7 +188,7 @@ export function ImageField<T extends FieldValues>({
   name: Path<T>;
   alt: string;
 }) {
-  const { notify } = useAdmin();
+  const { notify, busy, run } = useAdmin();
   const [uploading, setUploading] = useState(false);
   return (
     <Controller
@@ -195,19 +204,22 @@ export function ImageField<T extends FieldValues>({
             />
           </div>
           <div>
-            <label htmlFor="admin-image-upload">Upload image</label>
+            <label htmlFor={`admin-image-upload-${name}`}>Upload image</label>
             <input
-              id="admin-image-upload"
+              id={`admin-image-upload-${name}`}
               type="file"
               accept="image/png,image/jpeg,image/webp"
-              disabled={uploading}
+              disabled={uploading || busy}
               onChange={async (event) => {
                 const file = event.target.files?.[0];
                 event.target.value = '';
                 if (!file) return;
                 setUploading(true);
                 try {
-                  field.onChange(await imageStore.put(file));
+                  await run(
+                    async () => field.onChange(await imageStore.put(file)),
+                    'Uploading image…',
+                  );
                   notify('Image added to this form. Save draft to keep the change.');
                 } catch (error) {
                   notify(error instanceof Error ? error.message : 'Image upload failed.', true);
@@ -222,6 +234,7 @@ export function ImageField<T extends FieldValues>({
               <button
                 className="button small secondary"
                 type="button"
+                disabled={uploading || busy}
                 onClick={() => field.onChange('')}
               >
                 Remove image
@@ -378,19 +391,22 @@ export function EditorForm<T extends FieldValues>({
   children,
 }: {
   form: UseFormReturn<T>;
-  onSave: (value: T) => void;
+  onSave: (value: T) => void | Promise<void>;
   onCancel?: () => void;
   children: ReactNode;
 }) {
-  const { confirm, notify, setDirty } = useAdmin();
+  const { confirm, notify, setDirty, busy, run, operation } = useAdmin();
+  const pending = busy || form.formState.isSubmitting;
   return (
     <form
       className="admin-editor"
       noValidate
+      aria-busy={pending}
       onSubmit={form.handleSubmit(
-        (value) => {
+        async (value) => {
+          if (busy) return;
           try {
-            onSave(value);
+            await run(() => onSave(value));
             form.reset(value);
             setDirty(false);
             notify('Draft saved. Preview before publishing.');
@@ -401,13 +417,22 @@ export function EditorForm<T extends FieldValues>({
         () => notify('Check the highlighted fields before saving.', true),
       )}
     >
-      {children}
+      <fieldset className="admin-editor-fields" disabled={pending}>
+        {children}
+      </fieldset>
       <div className="admin-savebar">
-        <span>{form.formState.isDirty ? 'Unsaved form changes' : 'Form matches saved draft'}</span>
+        <span role="status">
+          {pending
+            ? operation || 'Saving draft…'
+            : form.formState.isDirty
+              ? 'Unsaved form changes'
+              : 'Form matches saved draft'}
+        </span>
         <div className="admin-actions">
           <button
             type="button"
             className="button secondary"
+            disabled={pending || !form.formState.isDirty}
             onClick={async () => {
               if (
                 !form.formState.isDirty ||
@@ -430,6 +455,7 @@ export function EditorForm<T extends FieldValues>({
             <button
               type="button"
               className="button secondary"
+              disabled={pending}
               onClick={async () => {
                 if (
                   !form.formState.isDirty ||
@@ -450,8 +476,8 @@ export function EditorForm<T extends FieldValues>({
               Cancel editing
             </button>
           ) : null}
-          <button className="button" type="submit">
-            Save draft
+          <button className="button" type="submit" disabled={pending}>
+            {form.formState.isSubmitting ? 'Saving draft…' : 'Save draft'}
           </button>
         </div>
       </div>

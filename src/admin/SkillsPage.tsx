@@ -17,12 +17,12 @@ export default function SkillsPage() {
       </header>
       <EditorForm
         form={form}
-        onSave={(value) =>
-          repository.saveDraft(
+        onSave={async (value) => {
+          await repository.saveDraft(
             { ...repository.read().draft, skills: value.skills },
             'Saved skills draft',
-          )
-        }
+          );
+        }}
       >
         <Controller
           control={form.control}
@@ -53,7 +53,7 @@ export default function SkillsPage() {
                         <button
                           type="button"
                           className="button small secondary"
-                          aria-label={`Move category ${index + 1} up`}
+                          aria-label={`Move up category ${index + 1}`}
                           disabled={!index}
                           onClick={() => move(index, -1)}
                         >
@@ -62,7 +62,7 @@ export default function SkillsPage() {
                         <button
                           type="button"
                           className="button small secondary"
-                          aria-label={`Move category ${index + 1} down`}
+                          aria-label={`Move down category ${index + 1}`}
                           disabled={index === field.value.length - 1}
                           onClick={() => move(index, 1)}
                         >
@@ -70,7 +70,7 @@ export default function SkillsPage() {
                         </button>
                         <button
                           type="button"
-                          className="button small secondary"
+                          className="button small secondary admin-remove"
                           onClick={async () => {
                             if (
                               await confirm({
@@ -136,7 +136,7 @@ export default function SkillsPage() {
                             </button>
                             <button
                               type="button"
-                              className="button small secondary"
+                              className="button small secondary admin-remove"
                               aria-label={`Remove skill ${skillIndex + 1} in category ${index + 1}`}
                               onClick={async () => {
                                 if (

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Search, Plus, Copy, ArrowUp, ArrowDown, Trash2 } from 'lucide-react';
 import { useWorkspace } from '../content/context';
 import { newProject } from '../content/defaults';
 import { projectSchema, type Project } from '../content/schema';
@@ -20,11 +21,11 @@ function ProjectEditor({
 }: {
   project: Project;
   onClose: () => void;
-  onDuplicate: (project: Project) => void;
+  onDuplicate: (project: Project) => Promise<void>;
 }) {
   const { repository } = useWorkspace();
   const form = useEditor(projectSchema, project);
-  const { guard } = useAdmin();
+  const { guard, busy } = useAdmin();
   return (
     <>
       <div className="admin-editor-heading">
@@ -32,6 +33,7 @@ function ProjectEditor({
         <button
           className="button small secondary"
           type="button"
+          disabled={busy}
           onClick={() =>
             guard(() =>
               onDuplicate(
@@ -40,16 +42,17 @@ function ProjectEditor({
             )
           }
         >
+          <Copy size={16} aria-hidden="true" />
           Duplicate
         </button>
       </div>
       <EditorForm
         form={form}
         onCancel={onClose}
-        onSave={(value) => {
+        onSave={async (value) => {
           const content = repository.read().draft;
           const existing = content.projects.some((item) => item.id === value.id);
-          repository.saveDraft(
+          await repository.saveDraft(
             {
               ...content,
               projects: existing
@@ -89,8 +92,8 @@ function ProjectEditor({
               label="Status"
               type="select"
               options={[
-                { value: 'draft', label: 'Draft — hidden on public site' },
-                { value: 'published', label: 'Published — visible after global Publish' },
+                { value: 'draft', label: 'Hidden draft' },
+                { value: 'published', label: 'Public-ready (appears after Publish)' },
               ]}
             />
             <Field
@@ -132,8 +135,10 @@ function ProjectEditor({
 export default function ProjectsPage() {
   const { repository, snapshot } = useWorkspace();
   const [selected, setSelected] = useState<Project | null>(null);
-  const { confirm, notify, guard } = useAdmin();
-  const duplicate = (project: Project) => {
+  const [query, setQuery] = useState('');
+  const { confirm, notify, guard, busy, run } = useAdmin();
+  const pending = busy || !!snapshot.pending;
+  const duplicate = async (project: Project) => {
     try {
       const content = repository.read().draft;
       const base = project.slug.slice(0, 64).replace(/-+$/, '');
@@ -151,32 +156,42 @@ export default function ProjectsPage() {
         status: 'draft',
         order: Math.min(10000, project.order + 1),
       };
-      repository.saveDraft(
-        { ...content, projects: [...content.projects, copy] },
-        `Duplicated project: ${project.title}`,
-      );
+      await run(async () => {
+        await repository.saveDraft(
+          { ...content, projects: [...content.projects, copy] },
+          `Duplicated project: ${project.title}`,
+        );
+      }, 'Duplicating project…');
       setSelected(copy);
       notify('Project duplicated into draft with a new ID and slug.');
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Duplicate failed.', true);
     }
   };
-  const reorder = (id: string, delta: number) => {
+  const reorder = async (id: string, delta: number) => {
     try {
       const content = repository.read().draft;
       const ordered = [...content.projects].sort((a, b) => a.order - b.order);
       const index = ordered.findIndex((item) => item.id === id);
+      if (index < 0 || index + delta < 0 || index + delta >= ordered.length) return;
       [ordered[index], ordered[index + delta]] = [ordered[index + delta], ordered[index]];
-      repository.saveDraft(
-        { ...content, projects: ordered.map((item, i) => ({ ...item, order: i })) },
-        'Reordered projects',
-      );
+      await run(async () => {
+        await repository.saveDraft(
+          { ...content, projects: ordered.map((item, i) => ({ ...item, order: i })) },
+          'Reordered projects',
+        );
+      });
       notify('Project order saved in draft.');
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Reordering failed.', true);
     }
   };
   const projects = [...snapshot.draft.projects].sort((a, b) => a.order - b.order);
+  const matching = projects.filter((project) =>
+    `${project.title} ${project.subtitle} ${project.category} ${project.technologies.join(' ')}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase()),
+  );
   return (
     <>
       <header className="admin-page-heading">
@@ -187,9 +202,10 @@ export default function ProjectsPage() {
         <button
           className="button"
           type="button"
-          disabled={projects.length >= 60}
+          disabled={pending || projects.length >= 60}
           onClick={() => guard(() => setSelected(newProject()))}
         >
+          <Plus size={17} aria-hidden="true" />
           Add project
         </button>
       </header>
@@ -203,92 +219,130 @@ export default function ProjectsPage() {
       ) : (
         <div className="admin-collection">
           {projects.length ? (
-            projects.map((project, index) => (
-              <article className="admin-project-row" key={project.id}>
-                <div className="admin-row-content">
-                  <span
-                    className={`admin-badge ${project.status === 'draft' ? 'admin-badge-draft' : ''}`}
-                  >
-                    {project.status === 'draft' ? 'Draft item' : 'Public-ready'}
-                    {project.featured ? ' · Featured' : ''}
-                  </span>
-                  <h2>{project.title}</h2>
-                  <p>{project.subtitle || project.description}</p>
-                  <small>/{project.slug}</small>
-                </div>
-                <div className="admin-row-actions">
-                  <button
-                    className="button small"
-                    type="button"
-                    onClick={() => setSelected(project)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="button small secondary"
-                    type="button"
-                    onClick={() => duplicate(project)}
-                  >
-                    Duplicate
-                  </button>
-                  <button
-                    className="button small secondary"
-                    type="button"
-                    disabled={!index}
-                    aria-label={`Move ${project.title} up`}
-                    onClick={() => reorder(project.id, -1)}
-                  >
-                    Up
-                  </button>
-                  <button
-                    className="button small secondary"
-                    type="button"
-                    disabled={index === projects.length - 1}
-                    aria-label={`Move ${project.title} down`}
-                    onClick={() => reorder(project.id, 1)}
-                  >
-                    Down
-                  </button>
-                  <button
-                    className="button small secondary"
-                    type="button"
-                    onClick={async () => {
-                      if (
-                        await confirm({
-                          title: 'Delete project?',
-                          message: `Delete ${project.title} from the saved draft? Published content and its images stay available until you publish.`,
-                          action: 'Delete project',
-                          destructive: true,
-                        })
-                      ) {
-                        try {
-                          const content = repository.read().draft;
-                          repository.saveDraft(
-                            {
-                              ...content,
-                              projects: content.projects.filter((item) => item.id !== project.id),
-                            },
-                            `Deleted project: ${project.title}`,
-                          );
-                          notify('Project deleted from draft.');
-                        } catch (error) {
-                          notify(error instanceof Error ? error.message : 'Delete failed.', true);
+            <div className="admin-collection-tools">
+              <label className="admin-search">
+                <Search size={18} aria-hidden="true" />
+                <input
+                  type="search"
+                  aria-label="Search projects"
+                  placeholder="Search projects"
+                  value={query}
+                  disabled={pending}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              <span className="admin-collection-count">
+                {matching.length} of {projects.length} projects
+              </span>
+            </div>
+          ) : null}
+          {matching.length ? (
+            matching.map((project) => {
+              const index = projects.findIndex((item) => item.id === project.id);
+              return (
+                <article className="admin-project-row" key={project.id}>
+                  <div className="admin-row-content">
+                    <span
+                      className={`admin-badge ${project.status === 'draft' ? 'admin-badge-draft' : ''}`}
+                    >
+                      {project.status === 'draft' ? 'Draft item' : 'Public-ready'}
+                      {project.featured ? ' · Featured' : ''}
+                    </span>
+                    <h2>{project.title}</h2>
+                    <p>{project.subtitle || project.description}</p>
+                    <small>/{project.slug}</small>
+                  </div>
+                  <div className="admin-row-actions">
+                    <button
+                      className="button small"
+                      type="button"
+                      disabled={pending}
+                      onClick={() => setSelected(project)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="button small secondary"
+                      type="button"
+                      disabled={pending || projects.length >= 60}
+                      onClick={() => duplicate(project)}
+                    >
+                      <Copy size={15} aria-hidden="true" />
+                      Duplicate
+                    </button>
+                    <button
+                      className="button small secondary"
+                      type="button"
+                      disabled={pending || !index}
+                      aria-label={`Move ${project.title} up`}
+                      onClick={() => reorder(project.id, -1)}
+                    >
+                      <ArrowUp size={15} aria-hidden="true" />
+                      Up
+                    </button>
+                    <button
+                      className="button small secondary"
+                      type="button"
+                      disabled={pending || index === projects.length - 1}
+                      aria-label={`Move ${project.title} down`}
+                      onClick={() => reorder(project.id, 1)}
+                    >
+                      <ArrowDown size={15} aria-hidden="true" />
+                      Down
+                    </button>
+                    <button
+                      className="button small secondary admin-remove"
+                      type="button"
+                      disabled={pending}
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            title: 'Delete project?',
+                            message: `Delete ${project.title} from the saved draft? Published content and its images stay available until you publish.`,
+                            action: 'Delete project',
+                            destructive: true,
+                          })
+                        ) {
+                          try {
+                            const content = repository.read().draft;
+                            await run(async () => {
+                              await repository.saveDraft(
+                                {
+                                  ...content,
+                                  projects: content.projects.filter(
+                                    (item) => item.id !== project.id,
+                                  ),
+                                },
+                                `Deleted project: ${project.title}`,
+                              );
+                            }, 'Deleting project…');
+                            notify('Project deleted from draft.');
+                          } catch (error) {
+                            notify(error instanceof Error ? error.message : 'Delete failed.', true);
+                          }
                         }
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </article>
-            ))
+                      }}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              );
+            })
           ) : (
             <div className="admin-panel">
-              <h2>No projects yet</h2>
+              <h2>{projects.length ? 'No matching projects' : 'No projects yet'}</h2>
               <p>
-                Add a project, describe the problem you solved, and preview your work before
-                publishing.
+                {projects.length
+                  ? 'Try another title, category or technology.'
+                  : 'Add a project, describe the problem you solved, and preview your work before publishing.'}
               </p>
+              {projects.length ? (
+                <button className="button secondary" type="button" onClick={() => setQuery('')}>
+                  Clear search
+                </button>
+              ) : null}
             </div>
           )}
         </div>

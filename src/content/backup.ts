@@ -32,12 +32,12 @@ const references = (data: Envelope) =>
       ...data.published.projects.map((p) => p.image),
     ].filter((ref) => ref.startsWith('image:')),
   );
-export async function exportBackup(repository: ContentRepository): Promise<string> {
+export async function exportBackup(repository: ContentRepository, imagesReader: Pick<typeof imageStore, 'get'> = imageStore): Promise<string> {
   const content = envelopeSchema.parse(JSON.parse(repository.exportSnapshot()));
   const images = [];
   let bytes = 0;
   for (const id of references(content)) {
-    const blob = await imageStore.get(id);
+    const blob = await imagesReader.get(id);
     if (!blob)
       throw new Error(
         'A saved image is unavailable, so a complete backup could not be created. Enable image storage or remove the missing image reference from draft and published content, then try again.',
@@ -69,7 +69,7 @@ export async function importBackup(raw: string, repository: ContentRepository): 
   }
   // Plain versioned content exports remain supported; imports always stage the draft.
   if (typeof parsed === 'object' && parsed !== null && !('format' in parsed)) {
-    repository.importSnapshot(raw);
+    await repository.importSnapshot(raw);
     return;
   }
   const result = portableSchema.safeParse(parsed);
@@ -114,7 +114,7 @@ export async function importBackup(raw: string, repository: ContentRepository): 
       replacements.get(data.draft.profile.image) ?? data.draft.profile.image;
     for (const project of data.draft.projects)
       project.image = replacements.get(project.image) ?? project.image;
-    repository.importSnapshot(JSON.stringify(data));
+    await repository.importSnapshot(JSON.stringify(data));
   } catch (error) {
     await Promise.allSettled(staged.map((id) => imageStore.remove(id)));
     throw error;

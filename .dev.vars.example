@@ -1,0 +1,4 @@
+# Local server-only configuration. Copy to .dev.vars using npm run admin:password.
+# The tool hashes an interactively entered password; it never prints it or its hash.
+# Never put secrets in VITE_* variables or commit .dev.vars.
+ADMIN_PASSWORD_HASH=

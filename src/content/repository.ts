@@ -6,21 +6,31 @@ import {
   type Envelope,
 } from './schema';
 import { defaults } from './defaults';
+import { createCloudRepository } from './cloudRepository';
 export const STORAGE_KEY = 'rahul-portfolio:content:v1';
 export const BACKUP_KEY = 'rahul-portfolio:last-valid:v1';
 const RECOVERY_KEY = 'rahul-portfolio:recovery:v1';
 type StoragePort = Pick<Storage, 'getItem' | 'setItem'>;
-export type Snapshot = Envelope & { warning: string };
+export type Snapshot = Envelope & {
+  warning: string;
+  loading?: boolean;
+  connected?: boolean;
+  pending?: boolean;
+  mode?: 'public' | 'admin';
+};
 export interface ContentRepository {
   read(): Snapshot;
   subscribe(listener: () => void): () => void;
-  refresh(): void;
-  saveDraft(content: Content, label: string): void;
-  publish(): void;
-  revert(): void;
-  resetDraft(): void;
+  refresh(): void | Promise<void>;
+  loadPublic(): Promise<void>;
+  loadAdmin(): Promise<void>;
+  leaveAdmin(): void;
+  saveDraft(content: Content, label: string): void | Promise<void>;
+  publish(): void | Promise<void>;
+  revert(): void | Promise<void>;
+  resetDraft(): void | Promise<void>;
   exportSnapshot(): string;
-  importSnapshot(raw: string): void;
+  importSnapshot(raw: string): void | Promise<void>;
   exportDamagedData(): string;
 }
 const initial = (): Envelope => ({
@@ -127,6 +137,9 @@ export function createRepository(storage?: StoragePort): ContentRepository {
       readStorage();
       listeners.forEach((listener) => listener());
     },
+    loadPublic: async () => { readStorage(); listeners.forEach((listener) => listener()); },
+    loadAdmin: async () => { readStorage(); listeners.forEach((listener) => listener()); },
+    leaveAdmin: () => {},
     saveDraft: (content, label) => {
       const result = contentSchema.safeParse(content);
       if (!result.success) throw new Error(validationMessage(result.error));
@@ -168,14 +181,7 @@ export function createRepository(storage?: StoragePort): ContentRepository {
 let browserRepository: ContentRepository | undefined;
 export function getRepository(): ContentRepository {
   if (!browserRepository) {
-    let storage: Storage | undefined;
-    try {
-      storage = window.localStorage;
-    } catch {}
-    browserRepository = createRepository(storage);
-    window.addEventListener('storage', (event) => {
-      if (event.key === STORAGE_KEY || event.key === null) browserRepository?.refresh();
-    });
+    browserRepository = createCloudRepository();
   }
   return browserRepository;
 }

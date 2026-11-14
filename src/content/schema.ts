@@ -77,6 +77,57 @@ const id = z
   .min(1)
   .max(80)
   .regex(/^[a-zA-Z0-9-]+$/);
+export const socialPlatformSchema = z.enum(['github', 'linkedin', 'instagram', 'x']);
+export type SocialPlatform = z.infer<typeof socialPlatformSchema>;
+
+function isSocialProfile(platform: SocialPlatform, value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+    const path = decodeURIComponent(url.pathname).replace(/\/$/, '');
+    if (platform === 'github') {
+      return host === 'github.com' && /^\/[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/.test(path) &&
+        !['login', 'join', 'settings', 'features', 'topics', 'explore', 'marketplace', 'orgs', 'about', 'contact', 'pricing'].includes(path.slice(1).toLowerCase());
+    }
+    if (platform === 'linkedin') return host === 'linkedin.com' && /^\/(in|company)\/[a-zA-Z0-9_-]{1,150}$/.test(path);
+    if (platform === 'instagram') {
+      return host === 'instagram.com' && /^\/[a-zA-Z0-9_.]{1,30}$/.test(path) &&
+        !['accounts', 'explore', 'reels', 'stories', 'direct', 'p', 'about'].includes(path.slice(1).toLowerCase());
+    }
+    return ['x.com', 'twitter.com'].includes(host) && /^\/[a-zA-Z0-9_]{1,15}$/.test(path) &&
+      !['home', 'search', 'explore', 'settings', 'intent', 'login', 'signup', 'i', 'messages', 'notifications'].includes(path.slice(1).toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+export const socialLinkSchema = z.object({
+  id,
+  platform: socialPlatformSchema,
+  url: z.string().trim().min(1, 'Enter a profile URL.').max(2000),
+  enabled: z.boolean(),
+  order: z.number().int().min(0).max(10000),
+}).strict().superRefine((link, ctx) => {
+  if (!isSocialProfile(link.platform, link.url)) ctx.addIssue({
+    code: 'custom', path: ['url'],
+    message: 'Enter an HTTPS profile URL for the selected platform, without credentials.',
+  });
+});
+export type SocialLink = z.infer<typeof socialLinkSchema>;
+export const socialLinksSchema = z.array(socialLinkSchema).max(16).superRefine((links, ctx) => {
+  if (new Set(links.map((link) => link.id)).size !== links.length) ctx.addIssue({
+    code: 'custom', message: 'Each social link needs a unique ID.',
+  });
+});
+
+function legacySocialLinks(profile: { githubUrl: string; linkedinUrl: string }): SocialLink[] {
+  const candidates: SocialLink[] = [
+    { id: 'legacy-github', platform: 'github', url: profile.githubUrl, enabled: true, order: 0 },
+    { id: 'legacy-linkedin', platform: 'linkedin', url: profile.linkedinUrl, enabled: true, order: 1 },
+  ];
+  return candidates.filter((link) => socialLinkSchema.safeParse(link).success);
+}
 const technologies = z.array(required(60)).max(40);
 const outcome = z
   .object({ value: required(80), label: required(180), context: text(400) })
@@ -178,9 +229,11 @@ export const contentSchema = z
     projects: z.array(projectSchema).max(60),
     skills: z.array(skillGroupSchema).max(20),
     research: z.array(researchSchema).max(60),
+    socialLinks: socialLinksSchema.optional(),
     settings: settingsSchema,
   })
   .strict()
+  .transform((data) => ({ ...data, socialLinks: data.socialLinks ?? legacySocialLinks(data.profile) }))
   .superRefine((data, ctx) => {
     const check = (values: string[], path: string) => {
       if (new Set(values).size !== values.length)
@@ -191,7 +244,7 @@ export const contentSchema = z
       'project slug',
     );
     check(
-      [...data.projects, ...data.skills, ...data.research, ...data.profile.education].map(
+      [...data.projects, ...data.skills, ...data.research, ...data.profile.education, ...data.socialLinks].map(
         (p) => p.id,
       ),
       'ID',
