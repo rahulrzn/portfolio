@@ -55,7 +55,7 @@ export default function About() {
                   Explore projects <ArrowUpRight size={18} />
                 </Link>
               </div>
-              <ProfileLinks />
+              <ProfileLinks showContactValues />
             </div>
           </div>
           <section className="about-education">

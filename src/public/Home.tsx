@@ -98,7 +98,7 @@ export default function Home() {
           </div>
         </div>
         <div className="hero-utility">
-          <ProfileLinks className="hero-links" />
+          <ProfileLinks className="hero-links" showContactValues />
           <Link className="scroll-cue" to={path('/#work')}>
             Discover the work <ArrowDownRight size={18} />
           </Link>
@@ -205,19 +205,22 @@ export default function Home() {
         </section>
       ) : null}
       <Opportunities />
-      <section id="contact" className="contact-cta">
-        <div className="container contact-cta-inner">
-          <div>
-            <p>Have an idea in mind?</p>
-            <h2>Let’s talk.</h2>
+      <section id="contact" className="contact-cta" aria-labelledby="home-contact-heading">
+        <div className="container">
+          <div className="contact-cta-inner">
+            <div>
+              <p>Have an idea in mind?</p>
+              <h2 id="home-contact-heading">Let’s talk.</h2>
+            </div>
+            <Link
+              className="contact-round-link"
+              to={path('/contact')}
+              aria-label="Start a conversation"
+            >
+              <ArrowUpRight size={66} strokeWidth={1.2} />
+            </Link>
           </div>
-          <Link
-            className="contact-round-link"
-            to={path('/contact')}
-            aria-label="Start a conversation"
-          >
-            <ArrowUpRight size={66} strokeWidth={1.2} />
-          </Link>
+          <ProfileLinks className="contact-cta-links" showContactValues />
         </div>
       </section>
     </>

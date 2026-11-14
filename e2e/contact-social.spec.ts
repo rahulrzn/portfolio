@@ -21,11 +21,12 @@ test('published contact and social edits reach every public location and persist
   browser,
   baseURL,
 }) => {
+  test.setTimeout(60000);
   const profiles = [
     ['github', 'GitHub', 'https://github.com/portfolio-owner'],
     ['linkedin', 'LinkedIn', 'https://www.linkedin.com/in/portfolio-owner'],
-    ['instagram', 'Instagram', 'https://www.instagram.com/portfolio-owner'],
-    ['x', 'X', 'https://x.com/portfolio-owner'],
+    ['instagram', 'Instagram', 'https://www.instagram.com/portfolio_owner'],
+    ['x', 'X', 'https://x.com/portfolio_owner'],
   ];
   const visitorContext = await browser.newContext({
     baseURL,

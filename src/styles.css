@@ -799,6 +799,11 @@ main:focus {
   text-transform: uppercase;
   white-space: nowrap;
 }
+.contact-cta-links {
+  margin-block-start: 28px;
+  padding-block-start: 20px;
+  border-block-start: 1px solid var(--border);
+}
 .contact-round-link {
   display: grid;
   place-items: center;
@@ -2705,6 +2710,12 @@ html[data-theme='light'],
   min-height: 44px;
   font-size: 16px;
   font-weight: 550;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.profile-links a svg {
+  flex-shrink: 0;
 }
 .profile-links a:hover {
   color: var(--accent);

@@ -192,7 +192,7 @@ export default function Layout() {
           <div className="footer-links">
             <Link to={path('/projects')}>Projects</Link>
             <Link to={path('/research')}>Research</Link>
-            <ProfileLinks />
+            <ProfileLinks showContactValues />
           </div>
           <span className="location">
             <MapPin size={13} />
