@@ -251,8 +251,8 @@ test('animated theme toggle persists and both theme palettes stay accessible', a
   test.setTimeout(60000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Switch to light mode' }).click();
   await expect(page.locator('.public-site')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('button', { name: 'Switch to dark mode' })).toBeVisible();
   await page.reload();
   await expect(page.locator('.public-site')).toHaveAttribute('data-theme', 'light');
   for (const width of [390, 1440]) {

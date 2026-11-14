@@ -26,7 +26,7 @@ An editable Open to Opportunities section presents user-provided entry-level rol
 
 ## Brand Commitments
 
-Rahul Reji R.; dark default with a coordinated light palette; oversized mixed-color Bebas Neue name masthead, Space Grotesk headings and legible Source Sans 3 body copy. Use the supplied LinkedIn portrait and matching RR monogram. Keep project showcases compact, factual and easy for recruiters to scan. About, Skills, Projects, Research and Contact have distinct compositions. The user explicitly removed workflow diagrams and abstract 3D models. Accessible and usable with motion disabled. Current design authority: DESIGN.md.
+Rahul Reji R.; light default with a coordinated dark palette and remembered theme choices across public and admin routes; oversized mixed-color Bebas Neue name masthead, Space Grotesk headings and legible Source Sans 3 body copy. Use the supplied LinkedIn portrait and matching RR monogram. Keep project showcases compact, factual and easy for recruiters to scan. About, Skills, Projects, Research and Contact have distinct compositions. The user explicitly removed workflow diagrams and abstract 3D models. Accessible and usable with motion disabled. Current design authority: DESIGN.md.
 
 ## Evidence on Hand
 

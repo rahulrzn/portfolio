@@ -21,6 +21,7 @@ import {
 import { motion, MotionConfig } from 'motion/react';
 import { ContentProvider, useWorkspace } from '../content/context';
 import PublicRoutes from '../public/PublicRoutes';
+import { useTheme } from '../components/ThemeToggle';
 import { AdminTools, useAdmin } from './workspace';
 import { useHistoryGuard } from './useHistoryGuard';
 import { useMobileDrawer } from './useMobileDrawer';
@@ -433,6 +434,7 @@ function Shell({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 export default function AdminApp() {
+  useTheme();
   const [session, setSession] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();

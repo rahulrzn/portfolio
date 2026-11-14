@@ -4,6 +4,8 @@ The public site combines a memorable editorial introduction with readable engine
 
 ## Color and type
 
+Light mode is the default for the public portfolio and admin. A saved theme choice takes precedence; dark mode remains available through the public theme toggle. The admin uses matching light surfaces, readable dark text and teal actions, including its dialogs, notifications and mobile navigation.
+
 | Role             | Dark      | Light     |
 | ---------------- | --------- | --------- |
 | Canvas           | `#171918` | `#f2f1eb` |
