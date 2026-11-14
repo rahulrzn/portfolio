@@ -20,6 +20,31 @@ async function publish(page: Page) {
   await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeDisabled();
 }
 
+test('public contact and social links are visible in the first viewport', async ({ page, publishContent }) => {
+  const { defaults } = await import('../src/content/defaults');
+  const content = structuredClone(defaults);
+  content.profile.email = 'owner@example.com';
+  content.profile.phone = '+91 98765 43210';
+  content.socialLinks = [
+    { id: 'first-github', platform: 'github', url: 'https://github.com/portfolio-owner', enabled: true, order: 0 },
+    { id: 'first-linkedin', platform: 'linkedin', url: 'https://linkedin.com/in/portfolio-owner', enabled: true, order: 1 },
+  ];
+  await publishContent(content);
+  for (const [name, viewport] of [
+    ['desktop', { width: 1280, height: 720 }],
+    ['mobile', { width: 390, height: 844 }],
+  ] as const) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+    const links = page.locator('.hero-links');
+    for (const label of ['GitHub', 'LinkedIn', 'owner@example.com', '+91 98765 43210']) {
+      await expect(links.getByRole('link', { name: label, exact: true })).toBeInViewport({ ratio: 1 });
+    }
+    await page.screenshot({ path: test.info().outputPath(`socials-top-${name}.png`) });
+  }
+});
+
 test('published contact and social edits reach every public location and persist after refresh', async ({
   page,
   browser,

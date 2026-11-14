@@ -51,6 +51,7 @@ export default function Home() {
             </m.span>
           ))}
         </m.h1>
+        <ProfileLinks className="hero-links" showContactValues />
         <div className="hero-collage">
           <div className="hero-introduction">
             <p>{profile.introduction}</p>
@@ -98,7 +99,6 @@ export default function Home() {
           </div>
         </div>
         <div className="hero-utility">
-          <ProfileLinks className="hero-links" showContactValues />
           <Link className="scroll-cue" to={path('/#work')}>
             Discover the work <ArrowDownRight size={18} />
           </Link>

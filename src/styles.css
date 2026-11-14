@@ -506,6 +506,14 @@ main:focus {
 .hero-links:empty {
   display: none;
 }
+.hero > .hero-links {
+  position: relative;
+  z-index: 4;
+  margin-block: 16px 20px;
+}
+.hero > .hero-links + .hero-collage {
+  margin-block-start: 20px;
+}
 .scroll-cue {
   margin-left: auto;
   display: flex;

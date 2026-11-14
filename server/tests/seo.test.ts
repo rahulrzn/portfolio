@@ -91,7 +91,7 @@ describe('dynamic sitemap', () => {
     expect(xml).toContain(`<loc>${origin}/contact</loc>`);
     expect(Array.from(xml.matchAll(/<loc>(.*?)<\/loc>/g), (match) => match[1])).toEqual([
       `${origin}/`, `${origin}/about`, `${origin}/skills`, `${origin}/projects`,
-      `${origin}/research`, `${origin}/contact`, `${origin}/projects/new-case`,
+      `${origin}/research`, `${origin}/contact`, `${origin}/resume`, `${origin}/projects/new-case`,
     ]);
     expect(xml).not.toContain('admin');
     expect(xml).not.toContain('hidden-case');
